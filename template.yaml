@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  File Deduplication and Hashing
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+
+    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
+    LoggingConfig:
+      LogFormat: JSON
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: LambdaSNSPublishPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sns:Publish'
+                Resource: !Ref DuplicateNotificationTopic
+  FileHashCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: FileHashCheck/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Architectures:
+        - x86_64
+      Events:
+        S3FileUpload:
+          Type: S3
+          Properties:
+            Bucket: !Ref TestBucket
+            Events: s3:ObjectCreated:*
+  HashesTable:
+    Type: AWS::Serverless::SimpleTable  # This is a simplified syntax for creating DynamoDB tables.
+    Properties:
+      TableName: FileHashes
+      PrimaryKey:
+        Name: HashKey  # Primary key
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+  TestBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: file-deduplication-test-bucket
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt FileHashCheckFunction.Arn
+  DuplicateNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: DuplicateFileNotifications
+
+
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName:
+        Ref: ApplicationResourceGroup
+      AutoConfigurationEnabled: 'true'
+Outputs:
+  FileHashCheckFunctionArn:
+    Description: File Hash Check Lambda Function ARN
+    Value: !GetAtt FileHashCheckFunction.Arn
+  
+  FileHashCheckFunctionIamRole:
+    Description: Implicit IAM Role ARN created for File Hash Check function
+    Value: !GetAtt FileHashCheckFunctionRole.Arn
+  
+  TestBucketName:
+    Description: S3 Bucket for File Deduplication
+    Value: !Ref TestBucket
+  
+  TestBucketArn:
+    Description: S3 Bucket ARN for File Deduplication
+    Value: !GetAtt TestBucket.Arn
+
+  HashesTableName:
+    Description: "DynamoDB table for storing file hashes"
+    Value: !Ref HashesTable
+
