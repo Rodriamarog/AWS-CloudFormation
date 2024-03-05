@@ -6,7 +6,7 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 8
     MemorySize: 128
 
     # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
@@ -24,13 +24,24 @@ Resources:
               Service: lambda.amazonaws.com
             Action: 'sts:AssumeRole'
       Policies:
-        - PolicyName: LambdaSNSPublishPolicy
+        - PolicyName: LambdaExecutionPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: 'sns:Publish'
+                Action:
+                  - 'sns:Publish'
                 Resource: !Ref DuplicateNotificationTopic
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                Resource: !Sub 'arn:aws:s3:::${TestBucket}/*'
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:PutItem'
+                Resource: !GetAtt HashesTable.Arn
+
   FileHashCheckFunction:
     Type: AWS::Serverless::Function
     Properties:
