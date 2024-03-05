@@ -57,6 +57,11 @@ Resources:
           Properties:
             Bucket: !Ref TestBucket
             Events: s3:ObjectCreated:*
+      Environment:
+        Variables:
+          TABLE_NAME: FileHashes
+          SNS_TOPIC_ARN: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:DuplicateFileNotifications
+
   HashesTable:
     Type: AWS::Serverless::SimpleTable  # This is a simplified syntax for creating DynamoDB tables.
     Properties:
