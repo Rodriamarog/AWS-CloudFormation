@@ -171,6 +171,9 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+#venv
+venv-awshash-1
+
 # PyBuilder
 target/
 
